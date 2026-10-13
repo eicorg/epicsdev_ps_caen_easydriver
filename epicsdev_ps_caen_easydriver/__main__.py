@@ -1,382 +1,358 @@
-"""EPICS PVAccess server for CAEN EASY-DRIVER power supply."""
+"""EPICS PVAccess server for CAEN EASY-DRIVER power supplies."""
 # pylint: disable=invalid-name,broad-exception-caught
-__version__ = 'v0.1.0 2026-09-23'
+__version__ = 'v0.0.1 2026-10-12'
 
 import argparse
-import re
+from dataclasses import dataclass
+from functools import partial
+import math
 import socket
-import sys
+import threading
+import time
 
 from epicsdev import epicsdev as edev
 
-DEFAULT_HOST = '192.168.0.10'
-DEFAULT_PORT = 10001
-DEFAULT_TIMEOUT = 2.0
+DEVICE = 'caen_edrv'
+STATUS_BITS = (
+    ('SupplyOn', 'Output enabled', 0),
+    ('GenericFault', 'Latched fault', 1),
+    ('DCunderV', 'DC-link undervoltage', 2),
+    ('FETovertemp', 'MOSFET overtemperature', 3),
+    ('ShuntOvertemp', 'Shunt overtemperature', 4),
+    ('ExternalInterlock1', 'External interlock tripped', 5),
+)
+GAIN_CELLS = {'ControllerKp': 13, 'ControllerKi': 14, 'ControllerKd': 15}
 
-pargs = None
-
-
-class C_:
-    """Namespace for module state."""
-
-    sock = None
-    model = 'UNKNOWN'
-    firmware = 'N/A'
-    setpoint_range = 10.0
-
-
-def handle_exception(where: str):
-    """Report exception context through logging/status PVs."""
-    edev.printe(f'{where}: {sys.exc_info()[1]}')
-
-
-def _read_line() -> str:
-    if C_.sock is None:
-        raise RuntimeError('Socket is not connected')
-
-    data = bytearray()
-    while True:
-        ch = C_.sock.recv(1)
-        if not ch:
-            break
-        data.extend(ch)
-        if ch == b'\r' or ch == b'\n':
-            break
-    return data.decode('ascii', errors='ignore').strip()
-
-
-def _connect():
-    try:
-        C_.sock = socket.create_connection((pargs.host, pargs.port), timeout=pargs.timeout)
-        C_.sock.settimeout(pargs.timeout)
-        edev.printi(f'Connected to EASY-DRIVER at {pargs.host}:{pargs.port}')
-    except OSError:
-        handle_exception(f'connecting to {pargs.host}:{pargs.port}')
-        sys.exit(1)
-
-
-def _send(cmd: str) -> str:
-    if C_.sock is None:
-        raise RuntimeError('Socket is not connected')
-    wire = f'{cmd}\r'.encode('ascii', errors='ignore')
-    C_.sock.sendall(wire)
-    reply = _read_line()
-    if reply == '':
-        raise RuntimeError(f'Empty reply for command {cmd!r}')
-    return reply
-
-
-def _is_ack(reply: str) -> bool:
-    r = str(reply).strip().upper()
-    return r == '#AK' or r.endswith(':#AK')
-
-
-def _is_nak(reply: str) -> bool:
-    r = str(reply).strip().upper()
-    return r == '#NAK' or r.endswith(':#NAK')
-
-
-def _parse_first_float(text: str, default=None):
-    m = re.search(r'[-+]?\d+(?:\.\d*)?(?:[eE][-+]?\d+)?', str(text))
-    if not m:
-        return default
-    try:
-        return float(m.group(0))
-    except ValueError:
-        return default
-
-
-def _value_after_colon(reply: str) -> str:
-    s = str(reply).strip()
-    if ':' in s:
-        return s.split(':')[-1].strip()
-    return s
-
-
-def _parse_status_bits(reply: str) -> int:
-    """Parse '#MST:xx' (hex) and return int value for status register."""
-    s = _value_after_colon(reply)
-    s = s.replace('0x', '').replace('0X', '').strip()
-    if re.fullmatch(r'[0-9a-fA-F]{1,2}', s):
-        return int(s, 16)
-    m = re.search(r'\d+', s)
-    if m:
-        return int(m.group(0))
-    raise ValueError(f'Cannot parse status register from {reply!r}')
-
-
-def _query_float(cmd: str, default=None):
-    try:
-        return _parse_first_float(_send(cmd), default=default)
-    except Exception:
-        handle_exception(f'in _query_float({cmd})')
-        return default
-
-
-def _query_text(cmd: str, default='') -> str:
-    try:
-        return _send(cmd)
-    except Exception:
-        handle_exception(f'in _query_text({cmd})')
-        return default
-
-
-def _infer_range_from_model(model: str, fallback: float) -> float:
-    """Infer current range from model code, e.g. 0520->5A, 1020->10A, 0112->1A."""
-    mcode = re.search(r'(?<!\d)(\d{4})(?!\d)', str(model))
-    if not mcode:
-        return fallback
-    amps_txt = mcode.group(1)[:2]
-    try:
-        amps = float(int(amps_txt))
-    except ValueError:
-        return fallback
-    return amps if amps > 0 else fallback
-
-
-def _refresh_status_bits():
-    try:
-        status = _parse_status_bits(_send('MST'))
-        edev.publish('SupplyOn', 1 if (status & (1 << 0)) else 0, ifChanged=True)
-        edev.publish('GenericFault', 1 if (status & (1 << 1)) else 0, ifChanged=True)
-        edev.publish('DCunderV', 1 if (status & (1 << 2)) else 0, ifChanged=True)
-        edev.publish('FETovertemp', 1 if (status & (1 << 3)) else 0, ifChanged=True)
-        edev.publish('ShuntOvertemp', 1 if (status & (1 << 4)) else 0, ifChanged=True)
-        edev.publish('ExternalInterlock1', 1 if (status & (1 << 5)) else 0, ifChanged=True)
-    except Exception:
-        handle_exception('in _refresh_status_bits')
-
-
-def _read_pid_and_slew_cells():
-    for pv_name, cell in [('ControllerKp', 13), ('ControllerKi', 14), ('ControllerKd', 15)]:
-        v = _query_float(f'MRG:{cell}', edev.pvv(pv_name))
-        if v is not None:
-            edev.publish(pv_name, v, ifChanged=True)
-
-
-def set_enable(value, *_):
-    try:
-        on = str(value).strip().upper() in ('1', 'ON', 'TRUE')
-        cmd = 'MON' if on else 'MOFF'
-        reply = _send(cmd)
-        if _is_nak(reply):
-            raise RuntimeError(f'{cmd} rejected: {reply}')
-        if not _is_ack(reply):
-            raise RuntimeError(f'Unexpected reply to {cmd}: {reply}')
-        edev.publish('Enable', 1 if on else 0, ifChanged=True)
-        _refresh_status_bits()
-    except Exception:
-        handle_exception('in set_enable')
-
-
-def set_reset(_value, *_):
-    try:
-        reply = _send('MRESET')
-        if not _is_ack(reply):
-            raise RuntimeError(f'Unexpected reply to MRESET: {reply}')
-        _refresh_status_bits()
-    except Exception:
-        handle_exception('in set_reset')
-
-
-def set_slew_control(value, *_):
-    """0: immediate (MWI), 1: rate limited (MRM)."""
-    try:
-        enabled = str(value).strip().upper() in ('1', 'ON', 'TRUE', 'RATE LIMIT')
-        v = 1 if enabled else 0
-        edev.publish('SlewControl', v, ifChanged=True)
-        edev.publish('SlewControlRBV', v, ifChanged=True)
-    except Exception:
-        handle_exception('in set_slew_control')
-
-
-def set_setpoint(value, *_):
-    try:
-        current = float(value)
-        if abs(current) > C_.setpoint_range:
-            raise ValueError(f'Setpoint {current} is out of range ±{C_.setpoint_range} A')
-        use_ramp = str(edev.pvv('SlewControl')).strip().upper() in ('1', 'ON', 'TRUE', 'RATE LIMIT')
-        cmd = f'MRM:{current:.6f}' if use_ramp else f'MWI:{current:.6f}'
-        reply = _send(cmd)
-        if _is_nak(reply):
-            raise RuntimeError(f'{cmd} rejected: {reply}')
-        if not _is_ack(reply):
-            raise RuntimeError(f'Unexpected reply to {cmd}: {reply}')
-        edev.publish('Setpoint', current, ifChanged=True)
-        _refresh_status_bits()
-    except Exception:
-        handle_exception('in set_setpoint')
-
-
-def _set_cell_value(pv_name: str, cell: int, value):
-    """Write user cell with MWG then apply with MPUP (requires output OFF)."""
-    val = float(value)
-    reply = _send(f'MWG:{cell}:{val:.8g}')
-    if _is_nak(reply):
-        raise RuntimeError(f'MWG:{cell} rejected: {reply}')
-    if not _is_ack(reply):
-        raise RuntimeError(f'Unexpected reply to MWG:{cell}: {reply}')
-
-    apply_reply = _send('MPUP')
-    if _is_nak(apply_reply):
-        raise RuntimeError('MPUP rejected (turn output OFF first)')
-    if not _is_ack(apply_reply):
-        raise RuntimeError(f'Unexpected reply to MPUP: {apply_reply}')
-    edev.publish(pv_name, val, ifChanged=True)
-
-
-def set_controller_kp(value, *_):
-    try:
-        _set_cell_value('ControllerKp', 13, value)
-    except Exception:
-        handle_exception('in set_controller_kp')
-
-
-def set_controller_ki(value, *_):
-    try:
-        _set_cell_value('ControllerKi', 14, value)
-    except Exception:
-        handle_exception('in set_controller_ki')
-
-
-def set_controller_kd(value, *_):
-    try:
-        _set_cell_value('ControllerKd', 15, value)
-    except Exception:
-        handle_exception('in set_controller_kd')
-
-
+#````````````````````````````````````````````````````````````````````````````
+# Definitions of PVs, their types, units, limits, and setter functions are
+# defined in the myPVDefs() function below.
 def myPVDefs():
-    """PV definitions matching misc/devEasyDriver.db records."""
-    F, U, LL, LH, SET = 'features', 'units', 'limitLow', 'limitHigh', 'setter'
-    rng = float(C_.setpoint_range)
+    """Return Easy-driver PVs, using the hardware current limit."""
+    F, T, U, LL, LH = 'features', 'type', 'units', 'limitLow', 'limitHigh'
+    SET = 'setter'
 
-    return [
-        ['Version', 'Version information', 'N/A'],
-        ['Enable', 'Turn supply off/on', ['Off', 'On'], {F: 'WD', SET: set_enable}],
-        ['Reset', 'Reset supply', ['Reset', 'Reset'], {F: 'WD', SET: set_reset}],
-        ['SlewControl', 'Disable/Enable slew rate control', ['Immediate', 'Rate Limit'], {F: 'WD', SET: set_slew_control}],
-        ['Setpoint', 'Current setpoint', 0.0, {F: 'W', U: 'A', LL: -rng, LH: rng, SET: set_setpoint}],
-        ['BulkVoltage', 'Bulk supply voltage', 0.0, {U: 'V'}],
-        ['RegulatorTemp', 'MOSFET regulator temperature', 0.0, {U: 'C'}],
-        ['ShuntTemp', 'Shunt temperature', 0.0, {U: 'C'}],
-        ['OutputVoltage', 'Supply output voltage', 0.0, {U: 'V'}],
-        ['SupplyOn', 'Supply on?', ['Off', 'On']],
-        ['GenericFault', 'Generic fault status', ['Good', 'Fault']],
-        ['FETovertemp', 'MOSFET overtemperature?', ['Good', 'MOSFET Overtemp']],
-        ['ShuntOvertemp', 'Shunt overtemperature?', ['Good', 'Shunt Overtemp']],
-        ['DCunderV', 'DC undervoltage?', ['Good', 'DC Undervoltage']],
-        ['ExternalInterlock1', 'External Interlock 1 status', ['Good', 'Error']],
-        ['CurrentRBV', 'Current readback', 0.0, {U: 'A', LL: -rng, LH: rng}],
-        ['SlewControlRBV', 'Slew rate control readback', ['Immediate', 'Rate Limit']],
-        ['ControllerKp', 'Proportional gain', 0.0, {F: 'W', SET: set_controller_kp}],
-        ['ControllerKi', 'Integral gain', 0.0, {F: 'W', SET: set_controller_ki}],
-        ['ControllerKd', 'Derivative gain', 0.0, {F: 'W', SET: set_controller_kd}],
+    pv_defs = [
+['dateTime', 'Server local date/time', 'N/A'],
+['host', 'EASY-DRIVER host', C_.pargs.host],
+['port', 'EASY-DRIVER TCP port', C_.pargs.port, {T: 'u32'}],
+['Connected', 'Last polling cycle succeeded', 0, {T: 'u8'}],
+['Version', 'Module firmware version', C_.initial['Version']],
+['Model', 'EASY-DRIVER model', C_.initial['Model']],
+['Identification', 'Module identification', C_.initial['Identification']],
+['CurrentLimit', 'Maximum allowed current magnitude', C_.currentLimit,
+    {T: 'f64', U: 'A'}],
+['Enable', 'Turn supply off/on', ['Off', 'On'],
+    {F: 'WD', SET: _set_enable}],
+['Reset', 'Reset module status register (write 1)', 0,
+    {F: 'W', T: 'u8', LL: 0, LH: 1, SET: _set_reset}],
+['SlewControl', 'Current setpoint update mode', ['Immediate', 'Rate Limit'],
+    {F: 'WD', SET: _set_slew_control}],
+['SlewControlRBV', 'Server current setpoint update mode', 0, {T: 'u8'}],
+['Setpoint', 'Last accepted current setpoint (not hardware readback)', 0.0,
+    {F: 'W', T: 'f64', U: 'A', LL: -C_.currentLimit, LH: C_.currentLimit,
+     SET: _set_setpoint}],
+['SlewRate', 'Ramp slew rate', C_.initial['SlewRate'],
+    {F: 'W', T: 'f64', U: 'A/s', LL: 0.0, LH: 1000.0, SET: _set_slew_rate}],
+['SlewRateRBV', 'Hardware ramp slew rate', C_.initial['SlewRate'],
+    {T: 'f64', U: 'A/s'}],
+['CurrentRBV', 'Measured output current', 0.0, {T: 'f64', U: 'A'}],
+['OutputVoltage', 'Measured output voltage', 0.0, {T: 'f64', U: 'V'}],
+['BulkVoltage', 'DC-link voltage', 0.0, {T: 'f64', U: 'V'}],
+['RegulatorTemp', 'MOSFET heatsink temperature', 0.0, {T: 'f64', U: 'C'}],
+['ShuntTemp', 'Shunt resistor temperature', 0.0, {T: 'f64', U: 'C'}],
+['Status', 'Module status register', 0, {T: 'u8'}],
     ]
+    for name, description, _bit in STATUS_BITS:
+        pv_defs.append([name, description, 0, {T: 'u8'}])
+    for name, cell in GAIN_CELLS.items():
+        pv_defs.append([name, 'Stored PID gain (writes require output off)',
+                        C_.initial[name],
+                        {F: 'W', T: 'f64', SET: partial(_set_gain, cell=cell)}])
+    return pv_defs
+#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 
+@dataclass(slots=True)
+class C_:
+    """Container for module state variables."""
+    pargs = None
+    sock = None
+    lock = threading.RLock()
+    currentLimit = 0.0
+    initial = {}
+    slewControl = 0
 
-def refresh_static():
-    """Read version and initialize static-compatible values."""
-    ver = _query_text('MVER', 'N/A')
-    edev.publish('Version', ver)
+def _disconnect():
+    """Discard a connection whose reply stream may be out of sync."""
+    if C_.sock is not None:
+        C_.sock.close()
+        C_.sock = None
 
-    m = re.search(r'#?MVER:EASY-DRIVER:([^:]+):([^\s\r\n]+)', ver)
-    if m:
-        C_.model = m.group(1)
-        C_.firmware = m.group(2)
+def _send(command: str) -> str:
+    """Exchange one CR-terminated ASCII command and reply, without retrying writes."""
+    if not command or any(char in command for char in '\r\n\x00'):
+        raise ValueError('Command must be a single nonempty ASCII line')
+    wire = (command + '\r').encode('ascii')
+    with C_.lock:
+        try:
+            if C_.sock is None:
+                C_.sock = socket.create_connection(
+                    (C_.pargs.host, C_.pargs.port), timeout=C_.pargs.timeout)
+            C_.sock.settimeout(C_.pargs.timeout)
+            deadline = time.monotonic() + C_.pargs.timeout
+            C_.sock.sendall(wire)
+            data = bytearray()
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(f'Timeout waiting for {command}')
+                C_.sock.settimeout(remaining)
+                chunk = C_.sock.recv(1)
+                if not chunk:
+                    raise ConnectionError('EASY-DRIVER closed the connection')
+                if chunk in (b'\r', b'\n'):
+                    if data:
+                        break
+                    continue
+                data.extend(chunk)
+                if len(data) > 4096:
+                    raise ValueError('EASY-DRIVER reply exceeds 4096 bytes')
+            reply = data.decode('ascii').strip()
+        except (OSError, ValueError):
+            _disconnect()
+            raise
+        if reply.startswith('#NAK'):
+            raise RuntimeError(f'{command}: device rejected command ({reply})')
+        return reply
 
-    edev.publish('SlewControl', 1, ifChanged=True)
-    edev.publish('SlewControlRBV', 1, ifChanged=True)
+def _ack(command: str):
+    """Require the documented acknowledgement for a write."""
+    reply = _send(command)
+    if reply != '#AK':
+        raise ValueError(f'{command}: expected #AK, received {reply!r}')
 
-    _read_pid_and_slew_cells()
-    _refresh_status_bits()
+def _query_float(command: str) -> float:
+    """Parse a telemetry reply or the bare ASCII contents of an EEPROM cell."""
+    reply = _send(command)
+    if command.startswith('MRG:'):
+        payload = reply
+    else:
+        prefix = f'#{command}:'
+        if command == 'MRTS' and reply.startswith('#MRT:'):
+            prefix = '#MRT:'
+        if not reply.startswith(prefix):
+            raise ValueError(f'{command}: unexpected reply {reply!r}')
+        payload = reply[len(prefix):]
+    value = float(payload)
+    if not math.isfinite(value):
+        raise ValueError(f'{command}: non-finite value')
+    return value
 
+def _query_status() -> int:
+    """Read the two hexadecimal digits of the eight-bit status register."""
+    reply = _send('MST')
+    if (not reply.startswith('#MST:') or len(reply) != 7
+            or any(char not in '0123456789abcdefABCDEF' for char in reply[5:])):
+        raise ValueError(f'MST: unexpected reply {reply!r}')
+    return int(reply[5:], 16)
+
+def _publish_status(status: int):
+    edev.publish('Status', status, ifChanged=True)
+    for name, _description, bit in STATUS_BITS:
+        edev.publish(name, (status >> bit) & 1, ifChanged=True)
+    edev.publish('Enable', status & 1, ifChanged=True)
+
+def _enum_index(value, choices) -> int:
+    text = str(value)
+    if text in choices:
+        return choices.index(text)
+    if text in ('0', '1'):
+        return int(text)
+    raise ValueError(f'Expected one of {choices}, received {value!r}')
+
+def _finite(value) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError('Value must be finite')
+    return number
+
+def _set_enable(value, *_):
+    enabled = _enum_index(value, ('Off', 'On'))
+    with C_.lock:
+        _ack('MON' if enabled else 'MOFF')
+        if enabled:
+            edev.publish('Setpoint', 0.0)
+
+def _set_reset(value, *_):
+    if _enum_index(value, ('0', '1')):
+        _ack('MRESET')
+
+def _set_slew_control(value, *_):
+    with C_.lock:
+        C_.slewControl = _enum_index(value, ('Immediate', 'Rate Limit'))
+        edev.publish('SlewControlRBV', C_.slewControl, ifChanged=True)
+
+def _set_setpoint(value, *_):
+    current = _finite(value)
+    if not -C_.currentLimit <= current <= C_.currentLimit:
+        raise ValueError(f'Current must be within +/-{C_.currentLimit} A')
+    with C_.lock:
+        command = 'MRM' if C_.slewControl else 'MWI'
+        _ack(f'{command}:{current:.12g}')
+
+def _set_slew_rate(value, *_):
+    rate = _finite(value)
+    if not 0.0 <= rate <= 1000.0:
+        raise ValueError('Slew rate must be within 0 to 1000 A/s')
+    _ack(f'MWSR:{rate:.12g}')
+
+def _set_gain(value, *_, cell: int):
+    gain = _finite(value)
+    with C_.lock:
+        if _query_status() & 1:
+            raise RuntimeError('PID gains can only be changed while the output is off')
+        _ack(f'MWG:{cell}:{gain:.12g}')
+        _ack('MPUP')
+
+def _read_initial():
+    """Read configuration without changing the output or EEPROM."""
+    reply = _send('MVER')
+    parts = reply.split(':')
+    if len(parts) != 4 or parts[:2] != ['#MVER', 'EASY-DRIVER']:
+        raise ValueError(f'MVER: unexpected reply {reply!r}')
+    C_.initial = {'Model': parts[2], 'Version': parts[3]}
+    reply = _send('MRID')
+    if not reply.startswith('#MRID:'):
+        raise ValueError(f'MRID: unexpected reply {reply!r}')
+    C_.initial['Identification'] = reply[6:]
+    hardware_limit = _query_float('MRG:4')
+    if hardware_limit <= 0.0:
+        raise ValueError('EEPROM maximum current must be positive')
+    C_.currentLimit = hardware_limit
+    if C_.pargs.current_range is not None:
+        C_.currentLimit = min(C_.currentLimit, C_.pargs.current_range)
+    C_.initial['SlewRate'] = _query_float('MRSR')
+    for name, cell in GAIN_CELLS.items():
+        C_.initial[name] = _query_float(f'MRG:{cell}')
 
 def poll():
-    """Main fast polling hook."""
-    edev.publish('CurrentRBV', _query_float('MRI', edev.pvv('CurrentRBV')), ifChanged=True)
-    edev.publish('BulkVoltage', _query_float('MRP', edev.pvv('BulkVoltage')), ifChanged=True)
-    edev.publish('RegulatorTemp', _query_float('MRT', edev.pvv('RegulatorTemp')), ifChanged=True)
-    edev.publish('ShuntTemp', _query_float('MRTS', edev.pvv('ShuntTemp')), ifChanged=True)
-    edev.publish('OutputVoltage', _query_float('MRV', edev.pvv('OutputVoltage')), ifChanged=True)
-    _refresh_status_bits()
-
+    """Publish readbacks, retaining the last valid values on communication failure."""
+    try:
+        with C_.lock:
+            _publish_status(_query_status())
+            for name, command in (
+                    ('CurrentRBV', 'MRI'), ('OutputVoltage', 'MRV'),
+                    ('BulkVoltage', 'MRP'), ('RegulatorTemp', 'MRT'),
+                    ('ShuntTemp', 'MRTS'), ('SlewRateRBV', 'MRSR')):
+                edev.publish(name, _query_float(command), ifChanged=True)
+            edev.publish('Connected', 1, ifChanged=True)
+    except (OSError, ValueError, RuntimeError) as exc:
+        edev.publish('Connected', 0, ifChanged=True)
+        edev.printe(f'EASY-DRIVER polling: {exc}')
 
 def periodic_update():
-    """Slower update hook."""
-    _read_pid_and_slew_cells()
-
+    """Update server time without accessing hardware while polling is stopped."""
+    edev.publish('dateTime', time.strftime('%Y-%m-%d %H:%M:%S'), ifChanged=True)
 
 def serverStateChanged(newState: str):
+    """Callback for server state transitions."""
     if newState == 'Start':
         edev.printi('Start requested')
-        _refresh_status_bits()
     elif newState == 'Stop':
         edev.printi('Stop requested')
     elif newState == 'Exit':
         edev.printi('Exit requested')
 
+def _positive(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number) or number <= 0.0:
+        raise argparse.ArgumentTypeError('Value must be finite and positive')
+    return number
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        epilog=__version__,
+        epilog=f'{__version__}, epicsdev:{edev.__version__}',
     )
-    parser.add_argument('-a', '--autosave', nargs='?', default='', help='Autosave control. If omitted, autosave is enabled with default directory.')
-    parser.add_argument('-c', '--recall', action='store_false', help='If given: do not restore initial PV values from autosave cache.')
-    parser.add_argument('-d', '--device', default='caen_edrv', help='Device name, PV prefix is <device><index>:')
-    parser.add_argument('-i', '--index', default='0', help='Device index, PV prefix is <device><index>:')
-    parser.add_argument('-p', '--putlogPV', nargs='?', default='', help='PV name for logging put operations. Empty means default putlog:dump.')
-    parser.add_argument('-v', '--verbose', action='count', default=0, help='Increase verbosity (-vv for more).')
-    parser.add_argument('--host', default=DEFAULT_HOST, help='EASY-DRIVER host name or IP address')
-    parser.add_argument('--port', type=int, default=DEFAULT_PORT, help='EASY-DRIVER TCP port')
-    parser.add_argument('--timeout', type=float, default=DEFAULT_TIMEOUT, help='TCP timeout in seconds')
-    parser.add_argument('--range', type=float, default=0.0, help='Current setpoint range in A. If 0, infer from model code.')
+    parser.add_argument('-a', '--autosave', nargs='?', default='', help=
+'Autosave control. If omitted, autosave is enabled with default directory.')
+    parser.add_argument('-c', '--recall', action='store_false', help=
+'If given: do not restore initial PV values from autosave cache.')
+    parser.add_argument('-i', '--instance', default='0', help=
+'Device instance.')
+    parser.add_argument('-p', '--putlogPV', nargs='?', default='', help=
+'PV name for logging put operations. Empty means default putlog:dump.')
+    parser.add_argument('-v', '--verbose', action='count', default=0, help=
+'Increase verbosity (-vv for more).')
+    parser.add_argument('device', nargs='?', default=DEVICE, help=
+'Device name, the prefix for all generated PVs <prefix><instance>:')
 
-    pargs = parser.parse_args()
-    if pargs.putlogPV == '':
-        pargs.putlogPV = 'putlog:dump'
-    pargs.prefix = f'{pargs.device}{pargs.index}:'
+    parser.add_argument('--host', default='192.168.0.10', help=
+'EASY-DRIVER hostname or IP address.')
+    parser.add_argument('--port', type=int, default=10001, help=
+'EASY-DRIVER TCP port.')
+    parser.add_argument('--timeout', type=_positive, default=2.0, help=
+'TCP command timeout in seconds.')
+    parser.add_argument('--range', dest='current_range', type=_positive, help=
+'Restrict current magnitude in A (cannot exceed the hardware limit).')
 
-    _connect()
-
-    initial_ver = _query_text('MVER', 'N/A')
-    mver = re.search(r'#?MVER:EASY-DRIVER:([^:]+):', initial_ver)
-    model_guess = mver.group(1) if mver else 'UNKNOWN'
-    C_.setpoint_range = float(pargs.range) if pargs.range > 0 else _infer_range_from_model(model_guess, 10.0)
-
-    pvs = edev.init_epicsdev(
-        pargs.prefix,
-        myPVDefs(),
-        pargs.verbose,
-        serverStateChanged,
-        '',
-        pargs.autosave,
-        pargs.recall,
-        pargs.putlogPV,
-    )
-    refresh_static()
-
-    edev.publish('VERSION', __version__)
-    edev.set_server('Start')
-
-    server = edev.Server(providers=[pvs])
-    edev.printi(f'Server for {pargs.prefix} started. Sleeping per cycle: {repr(edev.pvv("sleep"))} S.')
-    while True:
-        state = edev.serverState()
-        if state.startswith('Exit'):
-            break
-        if not state.startswith('Stop'):
-            poll()
-        if not edev.sleep():
-            periodic_update()
+    # Parse command-line arguments and store them in the module state container.
+    C_.pargs = parser.parse_args()
+    if not 1 <= C_.pargs.port <= 65535:
+        parser.error('--port must be within 1 to 65535')
+    if C_.pargs.putlogPV == '':
+        C_.pargs.putlogPV = 'putlog:dump'
+    C_.pargs.prefix = f'{C_.pargs.device.rstrip(":")}{C_.pargs.instance}:'
 
     try:
-        if C_.sock is not None:
-            C_.sock.close()
-    except OSError:
-        pass
+        _read_initial()
+    except (OSError, ValueError, RuntimeError) as exc:
+        _disconnect()
+        parser.exit(1, f'Cannot initialize EASY-DRIVER: {exc}\n')
+
+    C_.PvDefs = myPVDefs()
+
+    # Initialize the EPICS PVAccess server with the defined PVs.
+    PVs = edev.init_epicsdev(
+        C_.pargs.prefix,
+        C_.PvDefs,
+        C_.pargs.verbose,
+        serverStateChanged,
+        '',
+        C_.pargs.autosave,
+        C_.pargs.recall,
+        C_.pargs.putlogPV,
+    )
+    print(f'Using PV prefix: {C_.pargs.prefix}')
+
+    for initial_name in ('SlewRate', *GAIN_CELLS):
+        edev.publish(initial_name, C_.initial[initial_name])
+    edev.publish('Setpoint', 0.0)
+    edev.publish('Reset', 0)
+    _set_slew_control(edev.pvv('SlewControl'))
+
+    # Start the server and print initial status.
+    edev.publish('VERSION', __version__)
+    edev.set_server('Start')
+    server = edev.Server(providers=[PVs])
+    edev.printi((f'Server for {C_.pargs.prefix} started. Sleeping per cycle: '
+                 f'{repr(edev.pvv("sleep"))} S.'))
+
+    # Main server loop. Polls for updates and handles server state transitions.
+    try:
+        while True:
+            state = edev.serverState()
+            if state.startswith('Exit'):
+                break
+            if not state.startswith('Stop'):
+                poll()
+            if not edev.sleep():
+                periodic_update()
+    except KeyboardInterrupt:
+        edev.printi('Keyboard interrupt received, exiting main loop...')
+        edev.set_server('Exit')
+    finally:
+        with C_.lock:
+            _disconnect()
 
     edev.printi('Server is exited')
-
