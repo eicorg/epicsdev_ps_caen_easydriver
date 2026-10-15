@@ -1,5 +1,4 @@
-# epicsdev_ps_caen_easydriver. Under Development.
-
+# epicsdev_ps_caen_easydriver
 EPICS PVAccess server for **CAEN EASY-DRIVER** power supplies.
 
 This server implements remote control over TCP/IP using the EASY-DRIVER command set from:
