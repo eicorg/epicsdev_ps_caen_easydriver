@@ -1,6 +1,7 @@
 """EPICS PVAccess server for CAEN EASY-DRIVER power supplies."""
 # pylint: disable=invalid-name,broad-exception-caught
-__version__ = 'v0.0.1 2026-10-12'
+__version__ = 'v0.0.2 2026-10-15'# error handling improvements
+#TODO determine limits for Current and Voltage
 
 import argparse
 from dataclasses import dataclass
@@ -9,6 +10,7 @@ import math
 import socket
 import threading
 import time
+import sys
 
 from epicsdev import epicsdev as edev
 
@@ -89,17 +91,26 @@ def _disconnect():
 
 def _send(command: str) -> str:
     """Exchange one CR-terminated ASCII command and reply, without retrying writes."""
+    edev.printvv(f'Sending command: {command}')
     if not command or any(char in command for char in '\r\n\x00'):
         raise ValueError('Command must be a single nonempty ASCII line')
     wire = (command + '\r').encode('ascii')
     with C_.lock:
         try:
             if C_.sock is None:
-                C_.sock = socket.create_connection(
-                    (C_.pargs.host, C_.pargs.port), timeout=C_.pargs.timeout)
+                edev.printvv(f'No existing connection, creating a new one {C_.pargs.host, C_.pargs.port}, timeout={C_.pargs.timeout}')
+                try:
+                    C_.sock = socket.create_connection(
+                        (C_.pargs.host, C_.pargs.port), timeout=C_.pargs.timeout)
+                    edev.printvv(f'Created new connection to {(C_.pargs.host, C_.pargs.port)}')
+                except OSError as e:
+                    edev.printvv(f'Failed to create connection: to {(C_.pargs.host, C_.pargs.port)}, error: {e}')
+                    sys.exit(1)
             C_.sock.settimeout(C_.pargs.timeout)
             deadline = time.monotonic() + C_.pargs.timeout
+            edev.printvv(f'Sending command to device: {wire}')
             C_.sock.sendall(wire)
+            edev.printvv(f'Waiting for reply from device for command: {command}')
             data = bytearray()
             while True:
                 remaining = deadline - time.monotonic()
@@ -118,10 +129,12 @@ def _send(command: str) -> str:
                     raise ValueError('EASY-DRIVER reply exceeds 4096 bytes')
             reply = data.decode('ascii').strip()
         except (OSError, ValueError):
+            edev.printw(f'Error occurred while sending command: {command}')
             _disconnect()
             raise
         if reply.startswith('#NAK'):
             raise RuntimeError(f'{command}: device rejected command ({reply})')
+        edev.printvv(f'reply: {reply}')
         return reply
 
 def _ack(command: str):
@@ -304,6 +317,7 @@ if __name__ == '__main__':
         C_.pargs.putlogPV = 'putlog:dump'
     C_.pargs.prefix = f'{C_.pargs.device.rstrip(":")}{C_.pargs.instance}:'
 
+    edev.printi(f'Initializing EASY-DRIVER... {C_.pargs.host}:{C_.pargs.port}')
     try:
         _read_initial()
     except (OSError, ValueError, RuntimeError) as exc:
@@ -318,7 +332,7 @@ if __name__ == '__main__':
         C_.PvDefs,
         C_.pargs.verbose,
         serverStateChanged,
-        '',
+        None,
         C_.pargs.autosave,
         C_.pargs.recall,
         C_.pargs.putlogPV,
