@@ -1,0 +1,657 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <display version="2.0.0">
+    <name>CAEN_edrv</name>
+    <width>1080</width>
+    <height>660</height>
+    <widget type="label" version="2.0.0">
+      <name>title</name>
+      <x>20</x>
+      <y>10</y>
+      <width>230</width>
+      <height>30</height>
+      <text>CAEN_edrv</text>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>Model_lbl</name>
+      <x>270</x>
+      <y>14</y>
+      <width>45</width>
+      <height>20</height>
+      <text>Model:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>Model</name>
+      <x>320</x>
+      <y>14</y>
+      <width>160</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:Model</pv_name>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>Version_lbl</name>
+      <x>500</x>
+      <y>14</y>
+      <width>30</width>
+      <height>20</height>
+      <text>FW:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>Version</name>
+      <x>535</x>
+      <y>14</y>
+      <width>160</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:Version</pv_name>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>dateTime</name>
+      <x>800</x>
+      <y>14</y>
+      <width>260</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:dateTime</pv_name>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>srvStatus_lbl</name>
+      <x>20</x>
+      <y>45</y>
+      <width>50</width>
+      <height>20</height>
+      <text>Server:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>srvStatus</name>
+      <x>75</x>
+      <y>45</y>
+      <width>985</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:status</pv_name>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>state_lbl</name>
+      <x>20</x>
+      <y>85</y>
+      <width>65</width>
+      <height>20</height>
+      <text>Run/Stop:</text>
+    </widget>
+    <widget type="combo" version="2.0.0">
+      <name>server</name>
+      <x>90</x>
+      <y>85</y>
+      <width>110</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:server</pv_name>
+      <items>
+        <item>Start</item>
+        <item>Stop</item>
+        <item>Clear</item>
+        <item>Exit</item>
+        <item>Started</item>
+        <item>Stopped</item>
+        <item>Exited</item>
+      </items>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>sleep_lbl</name>
+      <x>410</x>
+      <y>85</y>
+      <width>40</width>
+      <height>20</height>
+      <text>Sleep:</text>
+    </widget>
+    <widget type="textentry" version="2.0.0">
+      <name>sleep</name>
+      <x>450</x>
+      <y>85</y>
+      <width>50</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:sleep</pv_name>
+      <format>1</format>
+      <precision>1</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>cycleTime_lbl</name>
+      <x>510</x>
+      <y>85</y>
+      <width>50</width>
+      <height>20</height>
+      <text>Period:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>cycleTime</name>
+      <x>560</x>
+      <y>85</y>
+      <width>60</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:cycleTime</pv_name>
+      <format>1</format>
+      <precision>1</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>hb_lbl</name>
+      <x>640</x>
+      <y>85</y>
+      <width>30</width>
+      <height>20</height>
+      <text>HB:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>HEARTBEAT</name>
+      <x>670</x>
+      <y>85</y>
+      <width>70</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:HEARTBEAT</pv_name>
+      <format>1</format>
+      <precision>0</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>host_lbl</name>
+      <x>20</x>
+      <y>125</y>
+      <width>40</width>
+      <height>20</height>
+      <text>Host:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>host</name>
+      <x>70</x>
+      <y>125</y>
+      <width>230</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:host</pv_name>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>port_lbl</name>
+      <x>320</x>
+      <y>125</y>
+      <width>40</width>
+      <height>20</height>
+      <text>Port:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>port</name>
+      <x>365</x>
+      <y>125</y>
+      <width>70</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:port</pv_name>
+      <format>1</format>
+      <precision>0</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>Connected_lbl</name>
+      <x>460</x>
+      <y>125</y>
+      <width>90</width>
+      <height>20</height>
+      <text>Connected:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>Connected</name>
+      <x>555</x>
+      <y>125</y>
+      <width>45</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:Connected</pv_name>
+      <format>1</format>
+      <precision>0</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>Identification_lbl</name>
+      <x>20</x>
+      <y>155</y>
+      <width>100</width>
+      <height>20</height>
+      <text>Identification:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>Identification</name>
+      <x>125</x>
+      <y>155</y>
+      <width>935</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:Identification</pv_name>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>Enable_lbl</name>
+      <x>20</x>
+      <y>205</y>
+      <width>60</width>
+      <height>20</height>
+      <text>Enable:</text>
+    </widget>
+    <widget type="combo" version="2.0.0">
+      <name>Enable</name>
+      <x>85</x>
+      <y>205</y>
+      <width>95</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:Enable</pv_name>
+      <items>
+        <item>Off</item>
+        <item>On</item>
+      </items>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>Reset_lbl</name>
+      <x>220</x>
+      <y>205</y>
+      <width>80</width>
+      <height>20</height>
+      <text>Reset (1):</text>
+    </widget>
+    <widget type="textentry" version="2.0.0">
+      <name>Reset</name>
+      <x>305</x>
+      <y>205</y>
+      <width>95</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:Reset</pv_name>
+      <format>1</format>
+      <precision>0</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>CurrentRBV_lbl</name>
+      <x>20</x>
+      <y>245</y>
+      <width>200</width>
+      <height>20</height>
+      <text>Output Current (A):</text>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>OutputVoltage_lbl</name>
+      <x>220</x>
+      <y>245</y>
+      <width>200</width>
+      <height>20</height>
+      <text>Output Voltage (V):</text>
+    </widget>
+    <widget type="meter" version="3.0.0">
+      <name>CurrentRBV</name>
+      <x>20</x>
+      <y>265</y>
+      <width>200</width>
+      <height>100</height>
+      <pv_name>pva://caen_edrv0:CurrentRBV</pv_name>
+    </widget>
+    <widget type="meter" version="3.0.0">
+      <name>OutputVoltage</name>
+      <x>220</x>
+      <y>265</y>
+      <width>200</width>
+      <height>100</height>
+      <pv_name>pva://caen_edrv0:OutputVoltage</pv_name>
+    </widget>
+    <widget type="scaledslider" version="2.0.0">
+      <name>SetpointSlider</name>
+      <x>20</x>
+      <y>365</y>
+      <width>400</width>
+      <height>40</height>
+      <pv_name>pva://caen_edrv0:Setpoint</pv_name>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>Setpoint_lbl</name>
+      <x>20</x>
+      <y>405</y>
+      <width>140</width>
+      <height>20</height>
+      <text>Accepted SP (A):</text>
+    </widget>
+    <widget type="textentry" version="2.0.0">
+      <name>Setpoint</name>
+      <x>165</x>
+      <y>405</y>
+      <width>235</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:Setpoint</pv_name>
+      <format>3</format>
+      <precision>3</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>CurrentLimit_lbl</name>
+      <x>20</x>
+      <y>435</y>
+      <width>140</width>
+      <height>20</height>
+      <text>Current limit (A):</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>CurrentLimit</name>
+      <x>165</x>
+      <y>435</y>
+      <width>235</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:CurrentLimit</pv_name>
+      <format>3</format>
+      <precision>3</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>SlewControl_lbl</name>
+      <x>20</x>
+      <y>465</y>
+      <width>140</width>
+      <height>20</height>
+      <text>Slew control:</text>
+    </widget>
+    <widget type="combo" version="2.0.0">
+      <name>SlewControl</name>
+      <x>165</x>
+      <y>465</y>
+      <width>235</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:SlewControl</pv_name>
+      <items>
+        <item>Immediate</item>
+        <item>Rate Limit</item>
+      </items>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>SlewControlRBV_lbl</name>
+      <x>20</x>
+      <y>495</y>
+      <width>140</width>
+      <height>20</height>
+      <text>Slew mode RBV:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>SlewControlRBV</name>
+      <x>165</x>
+      <y>495</y>
+      <width>235</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:SlewControlRBV</pv_name>
+      <format>1</format>
+      <precision>0</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>SlewRate_lbl</name>
+      <x>20</x>
+      <y>525</y>
+      <width>140</width>
+      <height>20</height>
+      <text>Slew rate (A/s):</text>
+    </widget>
+    <widget type="textentry" version="2.0.0">
+      <name>SlewRate</name>
+      <x>165</x>
+      <y>525</y>
+      <width>235</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:SlewRate</pv_name>
+      <format>3</format>
+      <precision>3</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>SlewRateRBV_lbl</name>
+      <x>20</x>
+      <y>555</y>
+      <width>140</width>
+      <height>20</height>
+      <text>Rate RBV (A/s):</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>SlewRateRBV</name>
+      <x>165</x>
+      <y>555</y>
+      <width>235</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:SlewRateRBV</pv_name>
+      <format>3</format>
+      <precision>3</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>BulkVoltage_lbl</name>
+      <x>460</x>
+      <y>245</y>
+      <width>150</width>
+      <height>20</height>
+      <text>DC-link (V):</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>BulkVoltage</name>
+      <x>615</x>
+      <y>245</y>
+      <width>125</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:BulkVoltage</pv_name>
+      <format>3</format>
+      <precision>3</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>RegulatorTemp_lbl</name>
+      <x>460</x>
+      <y>275</y>
+      <width>150</width>
+      <height>20</height>
+      <text>MOSFET temp (C):</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>RegulatorTemp</name>
+      <x>615</x>
+      <y>275</y>
+      <width>125</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:RegulatorTemp</pv_name>
+      <format>1</format>
+      <precision>1</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>ShuntTemp_lbl</name>
+      <x>460</x>
+      <y>305</y>
+      <width>150</width>
+      <height>20</height>
+      <text>Shunt temp (C):</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>ShuntTemp</name>
+      <x>615</x>
+      <y>305</y>
+      <width>125</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:ShuntTemp</pv_name>
+      <format>1</format>
+      <precision>1</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>PID_lbl</name>
+      <x>460</x>
+      <y>375</y>
+      <width>280</width>
+      <height>20</height>
+      <text>Stored PID gains (output off)</text>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>ControllerKp_lbl</name>
+      <x>460</x>
+      <y>405</y>
+      <width>150</width>
+      <height>20</height>
+      <text>Kp:</text>
+    </widget>
+    <widget type="textentry" version="2.0.0">
+      <name>ControllerKp</name>
+      <x>615</x>
+      <y>405</y>
+      <width>125</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:ControllerKp</pv_name>
+      <format>3</format>
+      <precision>3</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>ControllerKi_lbl</name>
+      <x>460</x>
+      <y>435</y>
+      <width>150</width>
+      <height>20</height>
+      <text>Ki:</text>
+    </widget>
+    <widget type="textentry" version="2.0.0">
+      <name>ControllerKi</name>
+      <x>615</x>
+      <y>435</y>
+      <width>125</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:ControllerKi</pv_name>
+      <format>3</format>
+      <precision>3</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>ControllerKd_lbl</name>
+      <x>460</x>
+      <y>465</y>
+      <width>150</width>
+      <height>20</height>
+      <text>Kd:</text>
+    </widget>
+    <widget type="textentry" version="2.0.0">
+      <name>ControllerKd</name>
+      <x>615</x>
+      <y>465</y>
+      <width>125</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:ControllerKd</pv_name>
+      <format>3</format>
+      <precision>3</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>Status_lbl</name>
+      <x>780</x>
+      <y>205</y>
+      <width>150</width>
+      <height>20</height>
+      <text>Status register:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>Status</name>
+      <x>935</x>
+      <y>205</y>
+      <width>125</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:Status</pv_name>
+      <format>1</format>
+      <precision>0</precision>
+    </widget>
+    <widget type="byte_monitor" version="2.0.0">
+      <name>StatusBits</name>
+      <x>780</x>
+      <y>235</y>
+      <width>280</width>
+      <height>25</height>
+      <pv_name>pva://caen_edrv0:Status</pv_name>
+      <numBits>8</numBits>
+      <horizontal>true</horizontal>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>SupplyOn_lbl</name>
+      <x>780</x>
+      <y>285</y>
+      <width>210</width>
+      <height>20</height>
+      <text>Output enabled:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>SupplyOn</name>
+      <x>1000</x>
+      <y>285</y>
+      <width>60</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:SupplyOn</pv_name>
+      <format>1</format>
+      <precision>0</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>GenericFault_lbl</name>
+      <x>780</x>
+      <y>315</y>
+      <width>210</width>
+      <height>20</height>
+      <text>Latched fault:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>GenericFault</name>
+      <x>1000</x>
+      <y>315</y>
+      <width>60</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:GenericFault</pv_name>
+      <format>1</format>
+      <precision>0</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>DCunderV_lbl</name>
+      <x>780</x>
+      <y>345</y>
+      <width>210</width>
+      <height>20</height>
+      <text>DC-link undervoltage:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>DCunderV</name>
+      <x>1000</x>
+      <y>345</y>
+      <width>60</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:DCunderV</pv_name>
+      <format>1</format>
+      <precision>0</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>FETovertemp_lbl</name>
+      <x>780</x>
+      <y>375</y>
+      <width>210</width>
+      <height>20</height>
+      <text>MOSFET overtemp:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>FETovertemp</name>
+      <x>1000</x>
+      <y>375</y>
+      <width>60</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:FETovertemp</pv_name>
+      <format>1</format>
+      <precision>0</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>ShuntOvertemp_lbl</name>
+      <x>780</x>
+      <y>405</y>
+      <width>210</width>
+      <height>20</height>
+      <text>Shunt overtemp:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>ShuntOvertemp</name>
+      <x>1000</x>
+      <y>405</y>
+      <width>60</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:ShuntOvertemp</pv_name>
+      <format>1</format>
+      <precision>0</precision>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>ExternalInterlock1_lbl</name>
+      <x>780</x>
+      <y>435</y>
+      <width>210</width>
+      <height>20</height>
+      <text>External interlock:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>ExternalInterlock1</name>
+      <x>1000</x>
+      <y>435</y>
+      <width>60</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:ExternalInterlock1</pv_name>
+      <format>1</format>
+      <precision>0</precision>
+    </widget>
+  </display>

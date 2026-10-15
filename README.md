@@ -2,6 +2,9 @@
 
 EPICS PVAccess server for **CAEN EASY-DRIVER** power supplies.
 
+Requires Python 3.11 or newer. The package includes `epicsdev` for the server
+and `phoebusgen` for generating the Phoebus operator interface.
+
 This server implements remote control over TCP/IP using the EASY-DRIVER command set from:
 
 - `misc/programming_manual.pdf`
@@ -51,7 +54,9 @@ Runtime polling and status use:
 - `MRP` → bulk/DC-link voltage
 - `MRT` → MOSFET temperature
 - `MRTS` → shunt temperature
-- `MVER` → version/model string
+
+Startup reads `MVER` for model and firmware version, `MRID` for identification,
+and `MRG` for the current limit and stored PID gains.
 
 Control operations use:
 
@@ -76,6 +81,20 @@ failed polling retains the last valid measurements and clears `Connected`.
 Broken connections are reopened on the next transaction, without replaying
 the failed command. Exiting the server closes TCP but does not turn off the supply.
 
+## Installation
+
+From this project directory, install the server and OPI generator dependencies:
+
+```bash
+python -m pip install .
+```
+
+For development, use an editable installation instead:
+
+```bash
+python -m pip install -e .
+```
+
 ## Running
 
 Example:
@@ -88,10 +107,12 @@ Useful options:
 
 - positional `device` prefix base (default: `caen_edrv`)
 - `-i, --instance` device instance (default: `0`)
-- `--host` EASY-DRIVER IP/host
-- `--port` EASY-DRIVER TCP port
-- `--timeout` socket timeout
-- `--range` restrict setpoint magnitude in A
+- `--host` EASY-DRIVER IP/host (default: `192.168.0.10`)
+- `--port` EASY-DRIVER TCP port (default: `10001`)
+- `--timeout` socket timeout in seconds (default: `2.0`)
+- `--range` restrict setpoint magnitude in A (default: hardware limit)
+
+Use `python -m epicsdev_ps_caen_easydriver --help` for all server options.
 
 The published PV prefix is:
 
@@ -100,6 +121,40 @@ The published PV prefix is:
 With defaults, PVs are published as:
 
 - `caen_edrv0:<PVName>`
+
+## Phoebus OPI
+
+Generate the operator interface from this project directory:
+
+```bash
+python opi/generate_opi.py
+```
+
+The [generator](opi/generate_opi.py) writes `opi/caen_edrv0.bob` with the
+default PV prefix `pva://caen_edrv0:`. Open the generated screen in Phoebus
+with PVAccess support enabled and the server running.
+
+The screen includes server controls, device identification and connection
+status, output current and voltage meters, a current setpoint slider and
+entry, slew settings and readbacks, temperatures, stored PID gains, and the
+status register with individual status flags. Write `1` to `Reset` to reset
+the module status register. PID gain writes require the output to be off.
+
+To use another server prefix and screen title:
+
+```bash
+python -m epicsdev_ps_caen_easydriver magnet -i 1 --host 192.168.0.10
+```
+
+In another terminal, from this project directory:
+
+```bash
+python opi/generate_opi.py --title "Magnet 1" pva://magnet1:
+```
+
+The prefix must include the trailing colon. The title and prefix options do
+not change the output filename: the generator still writes
+`opi/caen_edrv0.bob`, replacing any existing screen at that path.
 
 ## Tests
 

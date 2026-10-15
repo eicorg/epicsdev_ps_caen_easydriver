@@ -1,0 +1,230 @@
+#////////////////////////////////////////////////////////////////////////////////
+#//              ____      _      _____   _   _          _                     //
+#//             / ___|    / \    | ____| | \ | |   ___  | |  ___               //
+#//            | |       / _ \   |  _|   |  \| |  / _ \ | | / __|              //
+#//            | |___   / ___ \  | |___  | |\  | |  __/ | | \__ \              //
+#//             \____| /_/   \_\ |_____| |_| \_|  \___| |_| |___/              //
+#//                                                                            //
+#////////////////////////////////////////////////////////////////////////////////
+# Copyright (c) 2015 CAEN ELS d.o.o.
+# This code is distributed subject to a Software License Agreement found
+# in file LICENSE that is included with this distribution.
+#////////////////////////////////////////////////////////////////////////////////
+
+# =================================================
+# Device information
+# =================================================
+record(stringin, "$(P)$(R)Version")
+{
+    field(DESC, "Version information")
+    field(DTYP, "asynOctetRead")
+    field(INP,  "@asyn($(PORT) 0 0)")
+    field(PINI, "YES")
+}
+
+# =================================================
+# Control records
+# =================================================
+# record(bo, "$(P)$(R)BulkEnable")
+# {
+    # field(DESC, "Disable/enable bulk supply")
+    # field(DTYP, "asynInt32")
+    # field(OUT,  "@asyn($(PORT) 104 0)")
+    # field(ZNAM, "Disable")
+    # field(ONAM, "Enable")
+# }
+record(bo, "$(P)$(R)Enable")
+{
+    field(DESC, "Turn supply off/on")
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT) 100 0)")
+    field(ZNAM, "Off")
+    field(ONAM, "On")
+}
+record(bo, "$(P)$(R)Reset")
+{
+    field(DESC, "Reset supply")
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT) 101 0)")
+    field(ZNAM, "Reset")
+    field(ONAM, "Reset")
+}
+record(bo, "$(P)$(R)SlewControl")
+{
+    field(DESC, "Disable/Enable slew rate control")
+    field(DTYP, "asynInt32")
+    field(OUT,  "@asyn($(PORT) 102 0)")
+    field(ZNAM, "Immediate")
+    field(ONAM, "Rate Limit")
+    field(FLNK, "$(P)$(R)SlewControlRBV")
+}
+record(ao, "$(P)$(R)Setpoint")
+{
+    field(DESC, "Current setpoint")
+    field(DTYP, "asynFloat64")
+    field(OUT,  "@asyn($(PORT) 0 0)")
+    field(EGU,  "A")
+    field(PREC, "5")
+    field(LOPR, "-$(RANGE)")
+    field(HOPR, "$(RANGE)")
+    field(DRVL, "-$(RANGE)")
+    field(DRVH, "$(RANGE)")
+}
+
+# =================================================
+# Dummy record to trigger readbacks
+# =================================================
+record(bi, "$(P)$(R)ReadbackPoll_")
+{
+    field(DESC, "Head of readback chain")
+    field(DTYP, "asynInt32")
+    field(INP,  "@asyn($(PORT) 99 0)")
+    field(PINI, "YES")
+    field(SCAN, "1 second")
+    field(FLNK, "$(P)$(R)BulkVoltage")
+}
+
+# =================================================
+# Supply status records
+# =================================================
+record(ai, "$(P)$(R)BulkVoltage")
+{
+    field(DESC, "Bulk supply voltage")
+    field(DTYP, "asynFloat64")
+    field(INP,  "@asyn($(PORT) 40 0)")
+    field(EGU,  "V")
+    field(PREC, "3")
+    field(FLNK, "$(P)$(R)RegulatorTemp")
+}
+record(ai, "$(P)$(R)RegulatorTemp")
+{
+    field(DESC, "MOSFET regulator temperature")
+    field(DTYP, "asynFloat64")
+    field(INP,  "@asyn($(PORT) 41 0)")
+    field(EGU,  "degrees C")
+    field(PREC, "3")
+    field(FLNK, "$(P)$(R)ShuntTemp")
+}
+record(ai, "$(P)$(R)ShuntTemp")
+{
+    field(DESC, "Shunt temperature")
+    field(DTYP, "asynFloat64")
+    field(INP,  "@asyn($(PORT) 42 0)")
+    field(EGU,  "Vdegrees C")
+    field(PREC, "3")
+    field(FLNK, "$(P)$(R)OutputVoltage")
+}
+record(ai, "$(P)$(R)OutputVoltage")
+{
+    field(DESC, "Supply output voltage")
+    field(DTYP, "asynFloat64")
+    field(INP,  "@asyn($(PORT) 43 0)")
+    field(EGU,  "V")
+    field(PREC, "3")
+}
+# =================================================
+# Status bits
+# =================================================
+record(bi, "$(P)$(R)SupplyOn")
+{
+    field(DESC, "Supply on?")
+    field(DTYP, "asynInt32")
+    field(INP,  "@asyn($(PORT) 0 0)")
+    field(SCAN, "I/O Intr")
+    field(ZNAM, "Off")
+    field(ONAM, "On")
+}
+record(bi, "$(P)$(R)GenericFault")
+{
+    field(DESC, "Generic fault status")
+    field(DTYP, "asynInt32")
+    field(INP,  "@asyn($(PORT) 1 0)")
+    field(SCAN, "I/O Intr")
+    field(ZNAM, "Good")
+    field(ONAM, "Fault")
+}
+record(bi, "$(P)$(R)FETovertemp")
+{
+    field(DESC, "MOSFET overtemperature?")
+    field(DTYP, "asynInt32")
+    field(INP,  "@asyn($(PORT) 7 0)")
+    field(SCAN, "I/O Intr")
+    field(ZNAM, "Good")
+    field(ONAM, "MOSFET Overtemp")
+}
+record(bi, "$(P)$(R)ShuntOvertemp")
+{
+    field(DESC, "Shunt overtemperature?")
+    field(DTYP, "asynInt32")
+    field(INP,  "@asyn($(PORT) 8 0)")
+    field(SCAN, "I/O Intr")
+    field(ZNAM, "Good")
+    field(ONAM, "Shunt Overtemp")
+}
+record(bi, "$(P)$(R)DCunderV")
+{
+    field(DESC, "DC undervoltage?")
+    field(DTYP, "asynInt32")
+    #field(INP,  "@asyn($(PORT) 9 0)")
+	field(INP,  "@asyn($(PORT) 2 0)")
+    field(SCAN, "I/O Intr")
+    field(ZNAM, "Good")
+    field(ONAM, "DC Undervoltage")
+}
+record(bi, "$(P)$(R)ExternalInterlock1")
+{
+    field(DESC, "External Interlock 1 status")
+    field(DTYP, "asynInt32")
+    #field(INP,  "@asyn($(PORT) 16 0)")
+	field(INP,  "@asyn($(PORT) 5 0)")
+    field(SCAN, "I/O Intr")
+    field(ZNAM, "Good")
+    field(ONAM, "Error")
+}
+# =================================================
+record(ai, "$(P)$(R)CurrentRBV")
+{
+    field(DESC, "Current readback")
+    field(DTYP, "asynFloat64")
+    field(INP,  "@asyn($(PORT) 1 0)")
+    field(SCAN, "I/O Intr")
+    field(EGU,  "A")
+    field(PREC, "5")
+    field(LOPR, "0")
+    field(HOPR, "$(RANGE)")
+}
+record(bi, "$(P)$(R)SlewControlRBV")
+{
+    field(DESC, "Slew rate control readback")
+    field(DTYP, "asynInt32")
+    field(INP,  "@asyn($(PORT) 50 0)")
+    field(ZNAM, "Immediate")
+    field(ONAM, "Rate Limit")
+}
+
+# =================================================
+# Controller gains
+# =================================================
+record(ao, "$(P)$(R)ControllerKp")
+{
+    field(DESC, "Proportional gain")
+    field(DTYP, "asynFloat64")
+    field(OUT,  "@asyn($(PORT) 13 0)")
+    field(PREC, "5")
+}
+record(ao, "$(P)$(R)ControllerKi")
+{
+    field(DESC, "Proportional gain")
+    field(DTYP, "asynFloat64")
+    field(OUT,  "@asyn($(PORT) 14 0)")
+    field(PREC, "5")
+}
+#todo: remove Kd
+record(ao, "$(P)$(R)ControllerKd")			
+{
+    field(DESC, "Proportional gain")
+    field(DTYP, "asynFloat64")
+    field(OUT,  "@asyn($(PORT) 15 0)")
+    field(PREC, "5")
+}
+

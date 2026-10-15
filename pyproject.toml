@@ -1,9 +1,20 @@
 [project]
 name = "epicsdev-ps-caen-easydriver"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.0.2"
+description = "EPICS PVAccess server for CAEN EASY-DRIVER power supplies"
 readme = "README.md"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "epicsdev>=3.3.3",
+    "phoebusgen>=3.3.0",
 ]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
