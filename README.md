@@ -1,5 +1,4 @@
-# epicsdev_ps_caen_easydriver. Under Development.
-
+# epicsdev_ps_caen_easydriver
 EPICS PVAccess server for **CAEN EASY-DRIVER** power supplies.
 
 Requires Python 3.11 or newer. The package includes `epicsdev` for the server
