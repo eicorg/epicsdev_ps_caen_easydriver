@@ -403,6 +403,38 @@
       <precision>3</precision>
     </widget>
     <widget type="label" version="2.0.0">
+      <name>cmd_lbl</name>
+      <x>20</x>
+      <y>585</y>
+      <width>70</width>
+      <height>20</height>
+      <text>Command:</text>
+    </widget>
+    <widget type="textentry" version="2.0.0">
+      <name>instrCmdS</name>
+      <x>90</x>
+      <y>585</y>
+      <width>230</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:instrCmdS</pv_name>
+    </widget>
+    <widget type="label" version="2.0.0">
+      <name>reply_lbl</name>
+      <x>330</x>
+      <y>585</y>
+      <width>45</width>
+      <height>20</height>
+      <text>Reply:</text>
+    </widget>
+    <widget type="textupdate" version="2.0.0">
+      <name>instrCmdR</name>
+      <x>375</x>
+      <y>585</y>
+      <width>685</width>
+      <height>20</height>
+      <pv_name>pva://caen_edrv0:instrCmdR</pv_name>
+    </widget>
+    <widget type="label" version="2.0.0">
       <name>BulkVoltage_lbl</name>
       <x>460</x>
       <y>245</y>

@@ -1,5 +1,5 @@
 """Operator interface generator for CAEN EASY-DRIVER"""
-__version__ = 'v0.0.2 2026-10-15'
+__version__ = 'v0.0.3 2026-10-16'# InstrCmd added
 # pylint: disable=invalid-name,broad-exception-caught
 
 import argparse
@@ -106,6 +106,13 @@ def main() -> None:
             w.TextEntry if editable else w.TextUpdate)
         widgets[name] = widget_type(name, f"{prefix}{name}", 165, y, 235, 20)
         y += 30
+
+    widgets.update({
+        "cmd_lbl": w.Label("cmd_lbl", "Command:", 20, y, 70, 20),
+        "instrCmdS": w.TextEntry("instrCmdS", f"{prefix}instrCmdS", 90, y, 230, 20),
+        "reply_lbl": w.Label("reply_lbl", "Reply:", 330, y, 45, 20),
+        "instrCmdR": w.TextUpdate("instrCmdR", f"{prefix}instrCmdR", 375, y, 685, 20),
+    })
 
     y = 245
     for name, label in (

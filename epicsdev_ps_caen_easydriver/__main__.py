@@ -1,7 +1,6 @@
 """EPICS PVAccess server for CAEN EASY-DRIVER power supplies."""
 # pylint: disable=invalid-name,broad-exception-caught
-__version__ = 'v0.0.2 2026-10-15'# error handling improvements
-#TODO determine limits for Current and Voltage
+__version__ = 'v0.0.3 2026-10-16'# InstrCmd and ModelLimitshandled
 
 import argparse
 from dataclasses import dataclass
@@ -25,6 +24,13 @@ STATUS_BITS = (
 )
 GAIN_CELLS = {'ControllerKp': 13, 'ControllerKi': 14, 'ControllerKd': 15}
 
+ModelLimits = {#model: [minV, maxV, minI, maxI]
+'0520': [-20.0, 20.0, -5.0, 5.0],
+'1020': [-20.0, 20.0, -10.0, 10.0],
+'0220': [-20.0, 20.0, -2.0, 2.0],
+'0112': [-12.0, 12.0, -1.0, 1.0],
+}
+
 #````````````````````````````````````````````````````````````````````````````
 # Definitions of PVs, their types, units, limits, and setter functions are
 # defined in the myPVDefs() function below.
@@ -32,6 +38,8 @@ def myPVDefs():
     """Return Easy-driver PVs, using the hardware current limit."""
     F, T, U, LL, LH = 'features', 'type', 'units', 'limitLow', 'limitHigh'
     SET = 'setter'
+    modelLimit = ModelLimits.get(C_.initial['Model'], [-20.0, 20.0, -5.0, 5.0])
+    #print(f"Using model limits for {C_.initial['Model']}: {modelLimit}")
 
     pv_defs = [
 ['dateTime', 'Server local date/time', 'N/A'],
@@ -51,19 +59,25 @@ def myPVDefs():
     {F: 'WD', SET: _set_slew_control}],
 ['SlewControlRBV', 'Server current setpoint update mode', 0, {T: 'u8'}],
 ['Setpoint', 'Last accepted current setpoint (not hardware readback)', 0.0,
-    {F: 'W', T: 'f64', U: 'A', LL: -C_.currentLimit, LH: C_.currentLimit,
+    {F: 'W', T: 'f64', U: 'A', LL: modelLimit[2], LH: modelLimit[3],
      SET: _set_setpoint}],
 ['SlewRate', 'Ramp slew rate', C_.initial['SlewRate'],
     {F: 'W', T: 'f64', U: 'A/s', LL: 0.0, LH: 1000.0, SET: _set_slew_rate}],
 ['SlewRateRBV', 'Hardware ramp slew rate', C_.initial['SlewRate'],
     {T: 'f64', U: 'A/s'}],
-['CurrentRBV', 'Measured output current', 0.0, {T: 'f64', U: 'A'}],
-['OutputVoltage', 'Measured output voltage', 0.0, {T: 'f64', U: 'V'}],
+['CurrentRBV', 'Measured output current', 0.0,
+    {T: 'f64', U: 'A', LL: modelLimit[2], LH: modelLimit[3]}],
+['OutputVoltage', 'Measured output voltage', 0.0,
+    {T: 'f64', U: 'V', LL: modelLimit[0], LH: modelLimit[1]}],
 ['BulkVoltage', 'DC-link voltage', 0.0, {T: 'f64', U: 'V'}],
 ['RegulatorTemp', 'MOSFET heatsink temperature', 0.0, {T: 'f64', U: 'C'}],
 ['ShuntTemp', 'Shunt resistor temperature', 0.0, {T: 'f64', U: 'C'}],
 ['Status', 'Module status register', 0, {T: 'u8'}],
+['instrCmdS', 'Execute custom FAST-PS command', 'VER',
+    {F: 'W', SET: _set_instrCmdS}],
+['instrCmdR', 'Reply to custom FAST-PS command', ''],
     ]
+
     for name, description, _bit in STATUS_BITS:
         pv_defs.append([name, description, 0, {T: 'u8'}])
     for name, cell in GAIN_CELLS.items():
@@ -91,7 +105,7 @@ def _disconnect():
 
 def _send(command: str) -> str:
     """Exchange one CR-terminated ASCII command and reply, without retrying writes."""
-    edev.printvv(f'Sending command: {command}')
+    edev.printvv(f'Sending {len(command)}-byte command: `{command}`')
     if not command or any(char in command for char in '\r\n\x00'):
         raise ValueError('Command must be a single nonempty ASCII line')
     wire = (command + '\r').encode('ascii')
@@ -225,6 +239,18 @@ def _set_gain(value, *_, cell: int):
             raise RuntimeError('PID gains can only be changed while the output is off')
         _ack(f'MWG:{cell}:{gain:.12g}')
         _ack('MPUP')
+
+def _set_instrCmdS(cmd, *_):
+    try:
+        text = str(cmd).strip()
+        edev.printv(f'_set_instrCmdS: sending {len(text)}-byte command {text}')
+        if text == '':
+            return
+        reply = _send(text)
+        edev.printv(f'_set_instrCmdS: received reply {reply}')
+        edev.publish('instrCmdR', reply)
+    except Exception:
+        edev.printe(f'in _set_instrCmdS: {sys.exc_info()[1]}')
 
 def _read_initial():
     """Read configuration without changing the output or EEPROM."""
