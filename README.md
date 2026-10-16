@@ -124,6 +124,10 @@ With defaults, PVs are published as:
 
 ## Phoebus OPI
 
+Example operator interface: [caen_edrv0.bob](opi/caen_edrv0.bob).
+
+![CAEN EASY-DRIVER Phoebus operator interface showing current and voltage meters, output controls, PID gains, and status flags](docs/CAENeasyDriver_bob.jpg)
+
 Generate the operator interface from this project directory:
 
 ```bash
